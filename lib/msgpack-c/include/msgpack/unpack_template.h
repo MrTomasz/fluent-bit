@@ -32,12 +32,6 @@
 #error msgpack_unpack_user type is not defined
 #endif
 
-#ifndef USE_CASE_RANGE
-#if !defined(_MSC_VER)
-#define USE_CASE_RANGE
-#endif
-#endif
-
 #if defined(_KERNEL_MODE)
 #undef  assert
 #define assert NT_ASSERT
@@ -153,28 +147,15 @@ msgpack_unpack_func(int, _execute)(msgpack_unpack_struct(_context)* ctx, const c
 #define NEXT_CS(p) \
         ((unsigned int)*p & 0x1f)
 
-#ifdef USE_CASE_RANGE
-#define SWITCH_RANGE_BEGIN     switch(*p) {
-#define SWITCH_RANGE(FROM, TO) case FROM ... TO:
-#define SWITCH_RANGE_DEFAULT   default:
-#define SWITCH_RANGE_END       }
-#else
-#define SWITCH_RANGE_BEGIN     { if(0) {
-#define SWITCH_RANGE(FROM, TO) } else if(FROM <= *p && *p <= TO) {
-#define SWITCH_RANGE_DEFAULT   } else {
-#define SWITCH_RANGE_END       } }
-#endif
-
         if(p == pe) { goto _out; }
         do {
             switch(cs) {
             case MSGPACK_CS_HEADER:
-                SWITCH_RANGE_BEGIN
-                SWITCH_RANGE(0x00, 0x7f)  // Positive Fixnum
+                if(0x00 <= *p && *p <= 0x7F) { // Positive Fixnum
                     push_fixed_value(_uint8, *(uint8_t*)p);
-                SWITCH_RANGE(0xe0, 0xff)  // Negative Fixnum
+                } else if(0xe0 <= *p && *p <= 0xff) { // Negative Fixnum
                     push_fixed_value(_int8, *(int8_t*)p);
-                SWITCH_RANGE(0xc0, 0xdf)  // Variable
+                } else if(0xc0 <= *p && *p <= 0xdf) { // Variable
                     switch(*p) {
                     case 0xc0:  // nil
                         push_simple_value(_nil);
@@ -225,17 +206,16 @@ msgpack_unpack_func(int, _execute)(msgpack_unpack_struct(_context)* ctx, const c
                         ret = MSGPACK_UNPACK_PARSE_ERROR;
                         goto _failed;
                     }
-                SWITCH_RANGE(0xa0, 0xbf)  // FixStr
+                } else if(0xa0 <= *p && *p <= 0xbf) { // FixStr
                     again_fixed_trail_if_zero(MSGPACK_ACS_STR_VALUE, ((unsigned int)*p & 0x1f), _str_zero);
-                SWITCH_RANGE(0x90, 0x9f)  // FixArray
+                } else if(0x90 <= *p && *p <= 0x9f) { // FixArray
                     start_container(_array, ((unsigned int)*p) & 0x0f, MSGPACK_CT_ARRAY_ITEM);
-                SWITCH_RANGE(0x80, 0x8f)  // FixMap
+                } else if(0x80 <= *p && *p <= 0x8f) { // FixMap
                     start_container(_map, ((unsigned int)*p) & 0x0f, MSGPACK_CT_MAP_KEY);
-
-                SWITCH_RANGE_DEFAULT
+                } else {
                     ret = MSGPACK_UNPACK_PARSE_ERROR;
                     goto _failed;
-                SWITCH_RANGE_END
+                }
                 // end MSGPACK_CS_HEADER
 
 
@@ -421,6 +401,7 @@ msgpack_unpack_func(int, _execute)(msgpack_unpack_struct(_context)* ctx, const c
     _header_again:
             cs = MSGPACK_CS_HEADER;
             ++p;
+
         } while(p != pe);
         goto _out;
 
@@ -445,7 +426,6 @@ msgpack_unpack_func(int, _execute)(msgpack_unpack_struct(_context)* ctx, const c
         ctx->trail = trail;
         ctx->top = top;
         *off = (size_t)(p - (const unsigned char*)data);
-
         return ret;
     }
 }
@@ -464,8 +444,3 @@ msgpack_unpack_func(int, _execute)(msgpack_unpack_struct(_context)* ctx, const c
 #undef start_container
 
 #undef NEXT_CS
-
-#undef SWITCH_RANGE_BEGIN
-#undef SWITCH_RANGE
-#undef SWITCH_RANGE_DEFAULT
-#undef SWITCH_RANGE_END
