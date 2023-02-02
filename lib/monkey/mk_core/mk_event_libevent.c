@@ -188,6 +188,13 @@ static inline int _mk_event_add(struct mk_event_ctx *ctx, evutil_socket_t fd,
         flags |= EV_WRITE;
     }
 
+    if (event->data != NULL) {
+        struct ev_map *in_ev_map = event->data;
+
+        ev_map->pipe[0] = in_ev_map->pipe[0];
+        ev_map->pipe[1] = in_ev_map->pipe[1];
+    }
+
     /* Compose context */
     event->fd   = fd;
     event->type = type;
@@ -323,8 +330,9 @@ static inline int _mk_event_timeout_create(struct mk_event_ctx *ctx,
     event->fd = fd[0];
     event->type = MK_EVENT_NOTIFICATION;
     event->mask = MK_EVENT_EMPTY;
+    event->data = ev_map;
 
-    _mk_event_add(ctx, fd[0], MK_EVENT_NOTIFICATION, MK_EVENT_READ, data);
+    _mk_event_add(ctx, fd[0], MK_EVENT_NOTIFICATION, MK_EVENT_READ, event);
     event->mask = MK_EVENT_READ;
 
     return fd[0];
